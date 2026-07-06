@@ -12,6 +12,7 @@ export default function LandingPage() {
   const router = useRouter();
   const [is18Plus, setIs18Plus] = useState(false);
   const [joinCode, setJoinCode] = useState("");
+  const [nickname, setNickname] = useState("");
   const [isLoading, setIsLoading] = useState(false);
 
   useEffect(() => {
@@ -19,6 +20,10 @@ export default function LandingPage() {
     const confirmed = localStorage.getItem("brasa_18plus");
     if (confirmed) {
       setIs18Plus(true);
+    }
+    const savedNickname = localStorage.getItem("brasa_nickname");
+    if (savedNickname) {
+      setNickname(savedNickname);
     }
   }, []);
 
@@ -56,7 +61,7 @@ export default function LandingPage() {
 
     const { error: playerError } = await supabase
       .from("players")
-      .insert([{ room_id: roomData.id, device_id: deviceId, role: "host" }]);
+      .insert([{ room_id: roomData.id, device_id: deviceId, role: "host", nickname: nickname || null }]);
 
     if (playerError) {
       console.error("Error joining as host", playerError);
@@ -98,7 +103,7 @@ export default function LandingPage() {
       // Join as guest
       const { error: playerError } = await supabase
         .from("players")
-        .insert([{ room_id: roomData.id, device_id: deviceId, role: "guest" }]);
+        .insert([{ room_id: roomData.id, device_id: deviceId, role: "guest", nickname: nickname || null }]);
 
       if (playerError) {
         console.error("Error joining room", playerError);
@@ -147,6 +152,24 @@ export default function LandingPage() {
       </div>
 
       <div className="w-full max-w-md space-y-8 z-10">
+        <Card className="bg-opacity-50 backdrop-blur-sm">
+          <CardHeader>
+            <CardTitle>Tu nombre</CardTitle>
+            <CardDescription>Así te va a ver tu pareja en el juego.</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <Input
+              placeholder="Ej. Ale"
+              value={nickname}
+              onChange={(e) => {
+                setNickname(e.target.value);
+                localStorage.setItem("brasa_nickname", e.target.value);
+              }}
+              maxLength={20}
+            />
+          </CardContent>
+        </Card>
+
         <Card className="bg-opacity-50 backdrop-blur-sm">
           <CardHeader>
             <CardTitle>Crear Sala</CardTitle>

@@ -16,56 +16,58 @@ export function useGameState(roomCode: string) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const fetchInitialState = useCallback(async () => {
-    try {
-      // Get Room
-      const { data: roomData, error: roomError } = await supabase
-        .from("rooms")
-        .select("*")
-        .eq("code", roomCode)
-        .single();
-      
-      if (roomError) throw roomError;
-      setRoom(roomData);
+  const loadState = useCallback(async () => {
+    // Get Room
+    const { data: roomData, error: roomError } = await supabase
+      .from("rooms")
+      .select("*")
+      .eq("code", roomCode)
+      .single();
 
-      // Get Players
-      const { data: playersData, error: playersError } = await supabase
-        .from("players")
-        .select("*")
-        .eq("room_id", roomData.id);
-      
-      if (playersError) throw playersError;
-      setPlayers(playersData || []);
+    if (roomError) throw roomError;
+    setRoom(roomData);
 
-      // Identify Current Player from device_id
-      const deviceId = localStorage.getItem("brasa_device_id");
-      const me = playersData?.find((p) => p.device_id === deviceId);
-      if (me) {
-        setCurrentPlayer(me);
-      } else {
-        throw new Error("Jugador no encontrado en esta sala");
-      }
+    // Get Players
+    const { data: playersData, error: playersError } = await supabase
+      .from("players")
+      .select("*")
+      .eq("room_id", roomData.id);
 
-      // Get Turns
-      const { data: turnsData, error: turnsError } = await supabase
-        .from("turns")
-        .select("*")
-        .eq("room_id", roomData.id)
-        .order("created_at", { ascending: true });
-      
-      if (turnsError) throw turnsError;
-      setTurns(turnsData || []);
+    if (playersError) throw playersError;
+    setPlayers(playersData || []);
 
-    } catch (err: any) {
-      setError(err.message);
-    } finally {
-      setLoading(false);
+    // Identify Current Player from device_id
+    const deviceId = localStorage.getItem("brasa_device_id");
+    const me = playersData?.find((p) => p.device_id === deviceId);
+    if (me) {
+      setCurrentPlayer(me);
+    } else {
+      throw new Error("Jugador no encontrado en esta sala");
     }
+
+    // Get Turns
+    const { data: turnsData, error: turnsError } = await supabase
+      .from("turns")
+      .select("*")
+      .eq("room_id", roomData.id)
+      .order("created_at", { ascending: true });
+
+    if (turnsError) throw turnsError;
+    setTurns(turnsData || []);
   }, [roomCode]);
 
   useEffect(() => {
-    fetchInitialState();
-  }, [fetchInitialState]);
+    loadState().catch((err) => setError(err.message)).finally(() => setLoading(false));
+  }, [loadState]);
+
+  // Realtime can be delayed or miss events (e.g. reconnects), so poll in the
+  // background as a fallback instead of requiring a manual refresh.
+  useEffect(() => {
+    const interval = setInterval(() => {
+      loadState().catch(() => {});
+    }, 4000);
+    return () => clearInterval(interval);
+  }, [loadState]);
 
   // Set up Realtime subscriptions
   useEffect(() => {

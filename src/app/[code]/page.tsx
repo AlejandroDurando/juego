@@ -157,7 +157,7 @@ export default function GameRoom({ params }: { params: Promise<{ code: string }>
           <p className="text-sm text-gray-400">Puntaje: {room.score} / {room.game_length}</p>
         </div>
         <div className="text-sm px-3 py-1 rounded-full bg-[var(--card-bg)] border border-[var(--card-border)]">
-          {isMyTurn ? "Es tu turno" : "Esperando..."}
+          {isMyTurn ? "Es tu turno" : `Es el turno de ${otherPlayer?.nickname || "tu pareja"}`}
         </div>
       </header>
 
@@ -274,7 +274,7 @@ export default function GameRoom({ params }: { params: Promise<{ code: string }>
         </Card>
       ) : (
          <div className="text-center p-8 border border-dashed border-[var(--card-border)] rounded-lg text-gray-500 animate-pulse">
-            Esperando a que tu pareja responda...
+            Esperando a que {otherPlayer?.nickname || "tu pareja"} responda...
          </div>
       )}
 
