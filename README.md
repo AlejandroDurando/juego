@@ -2,6 +2,14 @@ This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-
 
 ## Getting Started
 
+This project uses [Supabase](https://supabase.com) as its backend. Copy `.env.example` to `.env.local` and fill in your Supabase project's URL and anon key (found under Project Settings → API):
+
+```bash
+cp .env.example .env.local
+```
+
+Then apply `supabase/schema.sql` to your Supabase project's SQL editor to create the required tables.
+
 First, run the development server:
 
 ```bash
