@@ -13,7 +13,7 @@ import { poses } from "@/data/poses";
 
 export default function GameRoom({ params }: { params: Promise<{ code: string }> }) {
   const resolvedParams = use(params);
-  const { room, players, turns, currentPlayer, loading, error } = useGameState(resolvedParams.code);
+  const { room, players, turns, currentPlayer, loading, error, setRoom, setTurns } = useGameState(resolvedParams.code);
   const router = useRouter();
 
   const [isSpinning, setIsSpinning] = useState(false);
@@ -54,30 +54,51 @@ export default function GameRoom({ params }: { params: Promise<{ code: string }>
     const newStatus = newScore >= room.game_length ? "finished" : "active";
 
     // 1. Insert new turn
-    const { error: turnError } = await supabase.from("turns").insert({
-      room_id: room.id,
-      actor_player: currentPlayer.id,
-      answers_turn_id: lastTurn ? lastTurn.id : null,
-      answer_text: answerText || null,
-      answer_pose_id: answerPoseId || null,
-      answer_variant: answerVariant || null,
-      new_question_id: selectedQuestion.id,
-      new_question_text: selectedQuestion.text,
-      level: newLevel
-    });
+    const { data: insertedTurn, error: turnError } = await supabase
+      .from("turns")
+      .insert({
+        room_id: room.id,
+        actor_player: currentPlayer.id,
+        answers_turn_id: lastTurn ? lastTurn.id : null,
+        answer_text: answerText || null,
+        answer_pose_id: answerPoseId || null,
+        answer_variant: answerVariant || null,
+        new_question_id: selectedQuestion.id,
+        new_question_text: selectedQuestion.text,
+        level: newLevel
+      })
+      .select()
+      .single();
 
-    if (turnError) {
+    if (turnError || !insertedTurn) {
       console.error(turnError);
+      alert("No se pudo enviar el turno: " + (turnError?.message ?? "error desconocido"));
       return;
     }
 
     // 2. Update room state
-    await supabase.from("rooms").update({
-      score: newScore,
-      current_level: newLevel,
-      status: newStatus,
-      turn_player: otherPlayer?.id // Pass turn to other player
-    }).eq("id", room.id);
+    const { data: updatedRoom, error: roomUpdateError } = await supabase
+      .from("rooms")
+      .update({
+        score: newScore,
+        current_level: newLevel,
+        status: newStatus,
+        turn_player: otherPlayer?.id ?? null // Pass turn to other player
+      })
+      .eq("id", room.id)
+      .select()
+      .single();
+
+    if (roomUpdateError || !updatedRoom) {
+      console.error(roomUpdateError);
+      alert("No se pudo actualizar la sala: " + (roomUpdateError?.message ?? "error desconocido"));
+      return;
+    }
+
+    // Reflect the change locally right away instead of waiting on the realtime echo,
+    // so the sender's own turn flips to "waiting" immediately.
+    setTurns((prev) => [...prev, insertedTurn]);
+    setRoom(updatedRoom);
 
     // Reset local state
     setAnswerText("");

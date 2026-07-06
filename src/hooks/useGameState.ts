@@ -95,7 +95,8 @@ export function useGameState(roomCode: string) {
         "postgres_changes",
         { event: "INSERT", schema: "public", table: "turns", filter: `room_id=eq.${room.id}` },
         (payload) => {
-          setTurns((prev) => [...prev, payload.new as Turn]);
+          const newTurn = payload.new as Turn;
+          setTurns((prev) => prev.some((t) => t.id === newTurn.id) ? prev : [...prev, newTurn]);
         }
       )
       .subscribe();
@@ -105,5 +106,5 @@ export function useGameState(roomCode: string) {
     };
   }, [room]);
 
-  return { room, players, turns, currentPlayer, loading, error };
+  return { room, players, turns, currentPlayer, loading, error, setRoom, setTurns };
 }
