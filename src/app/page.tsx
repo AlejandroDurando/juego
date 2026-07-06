@@ -49,6 +49,7 @@ export default function LandingPage() {
 
     if (roomError || !roomData) {
       console.error("Error creating room", roomError);
+      alert("No se pudo crear la sala: " + (roomError?.message ?? "error desconocido"));
       setIsLoading(false);
       return;
     }
@@ -59,6 +60,7 @@ export default function LandingPage() {
 
     if (playerError) {
       console.error("Error joining as host", playerError);
+      alert("No se pudo unir a la sala: " + playerError.message);
       setIsLoading(false);
       return;
     }
