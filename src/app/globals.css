@@ -1,12 +1,16 @@
 @import "tailwindcss";
 
 :root {
-  --background: #121212;
-  --foreground: #f3f3f3;
-  --brasa: #B03A2E;
-  --brasa-light: #E67E22;
-  --card-bg: #1e1e1e;
-  --card-border: #333333;
+  --background: #0c0908;
+  --foreground: #f5efe9;
+  --brasa: #c2402f;
+  --brasa-light: #e67e22;
+  --brasa-deep: #8e2a1f;
+  --brasa-glow: rgba(230, 126, 34, 0.25);
+  --card-bg: rgba(255, 250, 245, 0.035);
+  --card-border: rgba(245, 200, 160, 0.12);
+  --text-muted: #b5a79c;
+  --text-faint: #8a7d73;
 }
 
 @theme inline {
@@ -21,8 +25,115 @@
 }
 
 body {
-  background: var(--background);
+  background-color: var(--background);
+  background-image:
+    radial-gradient(ellipse 80% 50% at 50% -20%, rgba(194, 64, 47, 0.16), transparent 60%),
+    radial-gradient(ellipse 60% 40% at 85% 110%, rgba(230, 126, 34, 0.10), transparent 60%),
+    radial-gradient(ellipse 50% 35% at 8% 100%, rgba(120, 30, 40, 0.14), transparent 60%);
+  background-attachment: fixed;
   color: var(--foreground);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+}
+
+/* Fine film grain so the dark surfaces don't look flat */
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  opacity: 0.035;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+
+/* ————— Title ————— */
+
+.title-ember {
+  background: linear-gradient(115deg, #e67e22 0%, #c2402f 35%, #8e2a1f 55%, #e67e22 100%);
+  background-size: 220% auto;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  animation: sheen 9s ease-in-out infinite;
+}
+
+@keyframes sheen {
+  0%, 100% { background-position: 0% center; }
+  50% { background-position: 100% center; }
+}
+
+/* ————— Turn indicator ————— */
+
+@keyframes breathe {
+  0%, 100% {
+    opacity: 1;
+    box-shadow: 0 0 6px 1px rgba(52, 211, 153, 0.55);
+  }
+  50% {
+    opacity: 0.35;
+    box-shadow: 0 0 2px 0 rgba(52, 211, 153, 0.15);
+  }
+}
+
+.turn-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 9999px;
+  background: #34d399;
+  animation: breathe 2.4s ease-in-out infinite;
+}
+
+.turn-dot-idle {
+  width: 8px;
+  height: 8px;
+  border-radius: 9999px;
+  background: #52525b;
+}
+
+/* ————— Ember accents ————— */
+
+@keyframes ember {
+  0%, 100% { opacity: 0.5; }
+  50% { opacity: 0.9; }
+}
+
+.ember-line {
+  animation: ember 5s ease-in-out infinite;
+}
+
+/* Floating ember particles */
+.ember-particle {
+  position: absolute;
+  bottom: -10px;
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: radial-gradient(circle, #ffb36b 0%, #e67e22 45%, transparent 75%);
+  opacity: 0;
+  animation-name: rise;
+  animation-timing-function: linear;
+  animation-iteration-count: infinite;
+  pointer-events: none;
+}
+
+@keyframes rise {
+  0% { transform: translateY(0) translateX(0) scale(1); opacity: 0; }
+  8% { opacity: 0.5; }
+  55% { opacity: 0.25; }
+  100% { transform: translateY(-88vh) translateX(var(--drift, 24px)) scale(0.35); opacity: 0; }
+}
+
+/* Slow drifting glow orbs */
+@keyframes drift {
+  0%, 100% { transform: translate(0, 0) scale(1); }
+  50% { transform: translate(4%, -5%) scale(1.08); }
+}
+
+.orb {
+  animation: drift 18s ease-in-out infinite;
+}
+
+.orb-reverse {
+  animation: drift 22s ease-in-out infinite reverse;
 }
