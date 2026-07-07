@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
-import { supabase } from "@/lib/supabase";
+import { supabase, ensureSession } from "@/lib/supabase";
 import { Database } from "@/types/database.types";
 
 type Room = Database["public"]["Tables"]["rooms"]["Row"];
@@ -17,6 +17,10 @@ export function useGameState(roomCode: string) {
   const [error, setError] = useState<string | null>(null);
 
   const loadState = useCallback(async () => {
+    // RLS only lets room members read anything, so a session must exist first.
+    const session = await ensureSession();
+    const uid = session?.user.id;
+
     // Get Room
     const { data: roomData, error: roomError } = await supabase
       .from("rooms")
@@ -24,7 +28,7 @@ export function useGameState(roomCode: string) {
       .eq("code", roomCode)
       .single();
 
-    if (roomError) throw roomError;
+    if (roomError) throw new Error("Sala no encontrada o no sos parte de ella");
     setRoom(roomData);
 
     // Get Players
@@ -36,9 +40,8 @@ export function useGameState(roomCode: string) {
     if (playersError) throw playersError;
     setPlayers(playersData || []);
 
-    // Identify Current Player from device_id
-    const deviceId = localStorage.getItem("brasa_device_id");
-    const me = playersData?.find((p) => p.device_id === deviceId);
+    // Identify Current Player from the anonymous session
+    const me = playersData?.find((p) => p.auth_uid === uid);
     if (me) {
       setCurrentPlayer(me);
     } else {

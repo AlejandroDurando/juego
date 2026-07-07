@@ -48,6 +48,7 @@ export interface Database {
           device_id: string
           role: 'host' | 'guest'
           nickname: string | null
+          auth_uid: string | null
           joined_at: string
         }
         Insert: {
@@ -56,6 +57,7 @@ export interface Database {
           device_id: string
           role: 'host' | 'guest'
           nickname?: string | null
+          auth_uid?: string | null
           joined_at?: string
         }
         Update: {
@@ -64,6 +66,7 @@ export interface Database {
           device_id?: string
           role?: 'host' | 'guest'
           nickname?: string | null
+          auth_uid?: string | null
           joined_at?: string
         }
       }
