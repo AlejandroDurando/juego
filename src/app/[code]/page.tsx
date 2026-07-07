@@ -13,13 +13,14 @@ import { poses } from "@/data/poses";
 
 export default function GameRoom({ params }: { params: Promise<{ code: string }> }) {
   const resolvedParams = use(params);
-  const { room, players, turns, currentPlayer, loading, error } = useGameState(resolvedParams.code);
+  const { room, players, turns, currentPlayer, loading, error, setRoom, setTurns } = useGameState(resolvedParams.code);
   const router = useRouter();
 
   const [isSpinning, setIsSpinning] = useState(false);
   const [selectedQuestion, setSelectedQuestion] = useState<Question | null>(null);
   const [answerText, setAnswerText] = useState("");
   const [answerPoseId, setAnswerPoseId] = useState<string | null>(null);
+  const [answerVariant, setAnswerVariant] = useState("");
   
   if (loading) return <div className="min-h-screen flex items-center justify-center text-[var(--brasa)]">Cargando sala...</div>;
   if (error || !room) return <div className="min-h-screen flex items-center justify-center text-red-500">Error: {error || "Sala no encontrada"}</div>;
@@ -28,7 +29,9 @@ export default function GameRoom({ params }: { params: Promise<{ code: string }>
   const isMyTurn = room.turn_player === currentPlayer.id || (!room.turn_player && currentPlayer.role === "host");
   const otherPlayer = players.find((p) => p.id !== currentPlayer.id);
   const lastTurn = turns.length > 0 ? turns[turns.length - 1] : null;
+  const lastQuestion = lastTurn ? questions.find((q) => q.id === lastTurn.new_question_id) : null;
   const isFinished = room.status === "finished" || room.score >= room.game_length;
+  const hasAnsweredLastTurn = !lastTurn || Boolean(answerText || answerPoseId);
 
   const handleSpinEnd = () => {
     // Pick a random question based on current level
@@ -51,33 +54,56 @@ export default function GameRoom({ params }: { params: Promise<{ code: string }>
     const newStatus = newScore >= room.game_length ? "finished" : "active";
 
     // 1. Insert new turn
-    const { error: turnError } = await supabase.from("turns").insert({
-      room_id: room.id,
-      actor_player: currentPlayer.id,
-      answers_turn_id: lastTurn ? lastTurn.id : null,
-      answer_text: answerText || null,
-      answer_pose_id: answerPoseId || null,
-      new_question_id: selectedQuestion.id,
-      new_question_text: selectedQuestion.text,
-      level: newLevel
-    });
+    const { data: insertedTurn, error: turnError } = await supabase
+      .from("turns")
+      .insert({
+        room_id: room.id,
+        actor_player: currentPlayer.id,
+        answers_turn_id: lastTurn ? lastTurn.id : null,
+        answer_text: answerText || null,
+        answer_pose_id: answerPoseId || null,
+        answer_variant: answerVariant || null,
+        new_question_id: selectedQuestion.id,
+        new_question_text: selectedQuestion.text,
+        level: newLevel
+      })
+      .select()
+      .single();
 
-    if (turnError) {
+    if (turnError || !insertedTurn) {
       console.error(turnError);
+      alert("No se pudo enviar el turno: " + (turnError?.message ?? "error desconocido"));
       return;
     }
 
     // 2. Update room state
-    await supabase.from("rooms").update({
-      score: newScore,
-      current_level: newLevel,
-      status: newStatus,
-      turn_player: otherPlayer?.id // Pass turn to other player
-    }).eq("id", room.id);
+    const { data: updatedRoom, error: roomUpdateError } = await supabase
+      .from("rooms")
+      .update({
+        score: newScore,
+        current_level: newLevel,
+        status: newStatus,
+        turn_player: otherPlayer?.id ?? null // Pass turn to other player
+      })
+      .eq("id", room.id)
+      .select()
+      .single();
+
+    if (roomUpdateError || !updatedRoom) {
+      console.error(roomUpdateError);
+      alert("No se pudo actualizar la sala: " + (roomUpdateError?.message ?? "error desconocido"));
+      return;
+    }
+
+    // Reflect the change locally right away instead of waiting on the realtime echo,
+    // so the sender's own turn flips to "waiting" immediately.
+    setTurns((prev) => [...prev, insertedTurn]);
+    setRoom(updatedRoom);
 
     // Reset local state
     setAnswerText("");
     setAnswerPoseId(null);
+    setAnswerVariant("");
     setSelectedQuestion(null);
   };
 
@@ -131,7 +157,7 @@ export default function GameRoom({ params }: { params: Promise<{ code: string }>
           <p className="text-sm text-gray-400">Puntaje: {room.score} / {room.game_length}</p>
         </div>
         <div className="text-sm px-3 py-1 rounded-full bg-[var(--card-bg)] border border-[var(--card-border)]">
-          {isMyTurn ? "Es tu turno" : "Esperando..."}
+          {isMyTurn ? "Es tu turno" : `Es el turno de ${otherPlayer?.nickname || "tu pareja"}`}
         </div>
       </header>
 
@@ -162,25 +188,58 @@ export default function GameRoom({ params }: { params: Promise<{ code: string }>
            <CardContent className="pt-6">
             
             {/* Si hay una pregunta anterior que responder */}
-            {lastTurn && !selectedQuestion && (
+            {lastTurn && lastQuestion && !selectedQuestion && (
               <div className="mb-6 space-y-4">
                 <h3 className="font-serif text-xl mb-2">{lastTurn.new_question_text}</h3>
-                
-                {lastTurn.level === 2 && lastTurn.new_question_text.includes("pose") ? (
-                  <div className="grid grid-cols-2 gap-4">
-                    {poses.map(pose => (
-                      <div 
-                        key={pose.id} 
-                        onClick={() => setAnswerPoseId(pose.id)}
-                        className={`cursor-pointer rounded-lg border-2 p-2 transition-all ${answerPoseId === pose.id ? 'border-[var(--brasa)] bg-black' : 'border-[var(--card-border)] bg-[var(--background)]'}`}
+
+                {lastQuestion.type === "image_choice" ? (
+                  <>
+                    <div className="grid grid-cols-2 gap-4">
+                      {(lastQuestion.options ?? poses).map(pose => (
+                        <div
+                          key={pose.id}
+                          onClick={() => setAnswerPoseId(pose.id)}
+                          className={`cursor-pointer rounded-lg border-2 p-2 transition-all ${answerPoseId === pose.id ? 'border-[var(--brasa)] bg-black' : 'border-[var(--card-border)] bg-[var(--background)]'}`}
+                        >
+                          <img src={pose.imageSrc} alt={pose.label} className="w-full h-32 object-contain" />
+                        </div>
+                      ))}
+                    </div>
+                    {lastQuestion.allowVariantNote && (
+                      <Input
+                        placeholder="Alguna variante o nota (opcional)"
+                        value={answerVariant}
+                        onChange={(e) => setAnswerVariant(e.target.value)}
+                      />
+                    )}
+                  </>
+                ) : lastQuestion.type === "yes_no_followup" ? (
+                  <>
+                    <div className="grid grid-cols-2 gap-4">
+                      <Button
+                        variant={answerText === "Sí" ? "default" : "outline"}
+                        onClick={() => setAnswerText("Sí")}
                       >
-                        <img src={pose.imageSrc} alt={pose.label} className="w-full h-32 object-contain" />
-                      </div>
-                    ))}
-                  </div>
+                        Sí
+                      </Button>
+                      <Button
+                        variant={answerText === "No" ? "default" : "outline"}
+                        onClick={() => { setAnswerText("No"); setAnswerVariant(""); }}
+                      >
+                        No
+                      </Button>
+                    </div>
+                    {answerText === "Sí" && lastQuestion.followup && (
+                      <Input
+                        placeholder={lastQuestion.followup.text + (lastQuestion.followup.examples ? ` (${lastQuestion.followup.examples.join(", ")})` : "")}
+                        value={answerVariant}
+                        onChange={(e) => setAnswerVariant(e.target.value)}
+                      />
+                    )}
+                  </>
                 ) : (
-                  <Input 
-                    placeholder="Tu respuesta..." 
+                  <Input
+                    placeholder="Tu respuesta..."
                     value={answerText}
                     onChange={(e) => setAnswerText(e.target.value)}
                   />
@@ -191,7 +250,7 @@ export default function GameRoom({ params }: { params: Promise<{ code: string }>
             {/* Ruleta o Pregunta Seleccionada */}
             <div className="flex flex-col items-center justify-center py-4">
               {!selectedQuestion ? (
-                <div className={`${(!lastTurn || (lastTurn && (answerText || answerPoseId))) ? 'opacity-100' : 'opacity-30 pointer-events-none transition-opacity'}`}>
+                <div className={`${hasAnsweredLastTurn ? 'opacity-100' : 'opacity-30 pointer-events-none transition-opacity'}`}>
                   <p className="text-sm text-gray-400 text-center mb-4">
                     {lastTurn ? "Ahora elegí la tuya." : "Arrancá el juego."}
                   </p>
@@ -215,7 +274,7 @@ export default function GameRoom({ params }: { params: Promise<{ code: string }>
         </Card>
       ) : (
          <div className="text-center p-8 border border-dashed border-[var(--card-border)] rounded-lg text-gray-500 animate-pulse">
-            Esperando a que tu pareja responda...
+            Esperando a que {otherPlayer?.nickname || "tu pareja"} responda...
          </div>
       )}
 
