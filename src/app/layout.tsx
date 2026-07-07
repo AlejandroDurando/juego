@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Inter, Playfair_Display } from "next/font/google";
 import "./globals.css";
 
@@ -15,6 +15,14 @@ const playfair = Playfair_Display({
 export const metadata: Metadata = {
   title: "Brasa",
   description: "A private intimacy game for couples",
+};
+
+// maximumScale: 1 stops iOS Safari from auto-zooming when an input gains
+// focus (users can still pinch-zoom manually since iOS 10).
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  maximumScale: 1,
 };
 
 export default function RootLayout({

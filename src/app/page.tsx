@@ -7,8 +7,7 @@ import { Flame } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { Card, CardContent } from "@/components/ui/Card";
-import { supabase } from "@/lib/supabase";
-import { v4 as uuidv4 } from "uuid";
+import { supabase, ensureSession } from "@/lib/supabase";
 
 // Deterministic so SSR and client render the same markup.
 const EMBERS = [
@@ -64,40 +63,25 @@ export default function LandingPage() {
     setIs18Plus(true);
   };
 
-  const getOrCreateDeviceId = () => {
-    let deviceId = localStorage.getItem("brasa_device_id");
-    if (!deviceId) {
-      deviceId = uuidv4();
-      localStorage.setItem("brasa_device_id", deviceId);
-    }
-    return deviceId;
-  };
-
   const handleCreateRoom = async () => {
     setIsLoading(true);
-    const deviceId = getOrCreateDeviceId();
     const code = "BRASA-" + Math.random().toString(36).substring(2, 6).toUpperCase();
 
-    const { data: roomData, error: roomError } = await supabase
-      .from("rooms")
-      .insert([{ code, game_length: 15 }]) // Defaulting to 15 for now, could add UI for this
-      .select()
-      .single();
-
-    if (roomError || !roomData) {
-      console.error("Error creating room", roomError);
-      alert("No se pudo crear la sala: " + (roomError?.message ?? "error desconocido"));
+    try {
+      await ensureSession();
+    } catch (err) {
+      console.error("Error creating session", err);
+      alert("No se pudo iniciar sesión. Probá de nuevo.");
       setIsLoading(false);
       return;
     }
 
-    const { error: playerError } = await supabase
-      .from("players")
-      .insert([{ room_id: roomData.id, device_id: deviceId, role: "host", nickname: nickname || null }]);
+    const { data: roomData, error: roomError } = await supabase
+      .rpc("create_room", { p_code: code, p_game_length: 15, p_nickname: nickname || null });
 
-    if (playerError) {
-      console.error("Error joining as host", playerError);
-      alert("No se pudo unir a la sala: " + playerError.message);
+    if (roomError || !roomData) {
+      console.error("Error creating room", roomError);
+      alert("No se pudo crear la sala: " + (roomError?.message ?? "error desconocido"));
       setIsLoading(false);
       return;
     }
@@ -108,40 +92,24 @@ export default function LandingPage() {
   const handleJoinRoom = async () => {
     if (!joinCode) return;
     setIsLoading(true);
-    const deviceId = getOrCreateDeviceId();
 
-    // Find room
-    const { data: roomData, error: roomError } = await supabase
-      .from("rooms")
-      .select()
-      .eq("code", joinCode.toUpperCase())
-      .single();
-
-    if (roomError || !roomData) {
-      alert("Sala no encontrada");
+    try {
+      await ensureSession();
+    } catch (err) {
+      console.error("Error creating session", err);
+      alert("No se pudo iniciar sesión. Probá de nuevo.");
       setIsLoading(false);
       return;
     }
 
-    // Check if already in room
-    const { data: existingPlayer } = await supabase
-      .from("players")
-      .select()
-      .eq("room_id", roomData.id)
-      .eq("device_id", deviceId)
-      .single();
+    const { data: roomData, error: roomError } = await supabase
+      .rpc("join_room", { p_code: joinCode.toUpperCase(), p_nickname: nickname || null });
 
-    if (!existingPlayer) {
-      // Join as guest
-      const { error: playerError } = await supabase
-        .from("players")
-        .insert([{ room_id: roomData.id, device_id: deviceId, role: "guest", nickname: nickname || null }]);
-
-      if (playerError) {
-        console.error("Error joining room", playerError);
-        setIsLoading(false);
-        return;
-      }
+    if (roomError || !roomData) {
+      console.error("Error joining room", roomError);
+      alert(roomError?.message ?? "Sala no encontrada");
+      setIsLoading(false);
+      return;
     }
 
     router.push(`/${joinCode.toUpperCase()}`);

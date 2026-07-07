@@ -1,73 +1,18 @@
--- Brasa schema (secure baseline).
--- REQUIRES: Authentication → Sign In / Up → "Allow anonymous sign-ins" enabled.
+-- ============================================================
+-- Brasa: security hardening migration
+--
+-- BEFORE RUNNING: enable anonymous sign-ins in the dashboard:
+--   Authentication → Sign In / Up → "Allow anonymous sign-ins"
+--
+-- After this migration, rooms/players/turns are only readable by
+-- the two members of each room. Creating and joining rooms goes
+-- through SECURITY DEFINER functions that require the room code.
+-- NOTE: rooms created before this migration become inaccessible
+-- (their players have no auth_uid) — create fresh rooms after.
+-- ============================================================
 
--- Enable UUID extension
-create extension if not exists "uuid-ossp";
-
--- Rooms table
-create table if not exists rooms (
-    id uuid primary key default uuid_generate_v4(),
-    code text unique not null,
-    status text not null default 'waiting', -- waiting, active, finished
-    game_length int not null default 5, -- 5, 10, 15
-    current_level int not null default 1, -- 1, 2, 3
-    score int not null default 0,
-    turn_player uuid,
-    created_at timestamptz not null default now()
-);
-
--- Players table
-create table if not exists players (
-    id uuid primary key default uuid_generate_v4(),
-    room_id uuid not null references rooms(id) on delete cascade,
-    device_id text not null,
-    role text not null, -- host, guest
-    nickname text,
-    auth_uid uuid,
-    joined_at timestamptz not null default now()
-);
-
--- Turns table
-create table if not exists turns (
-    id uuid primary key default uuid_generate_v4(),
-    room_id uuid not null references rooms(id) on delete cascade,
-    actor_player uuid not null references players(id) on delete cascade,
-    answers_turn_id uuid references turns(id) on delete cascade,
-    answer_text text,
-    answer_pose_id text,
-    answer_variant text,
-    answer_media_url text,
-    new_question_id text,
-    new_question_text text not null,
-    level int not null,
-    created_at timestamptz not null default now()
-);
-
--- Favorites table
-create table if not exists favorites (
-    id uuid primary key default uuid_generate_v4(),
-    room_id uuid not null references rooms(id) on delete cascade,
-    turn_id uuid not null references turns(id) on delete cascade,
-    marked_by uuid not null references players(id) on delete cascade,
-    created_at timestamptz not null default now()
-);
-
--- Chat messages table
-create table if not exists chat_messages (
-    id uuid primary key default uuid_generate_v4(),
-    room_id uuid not null references rooms(id) on delete cascade,
-    favorite_id uuid references favorites(id) on delete cascade,
-    sender uuid not null references players(id) on delete cascade,
-    body text not null,
-    created_at timestamptz not null default now()
-);
-
--- Row Level Security (RLS)
-alter table rooms enable row level security;
-alter table players enable row level security;
-alter table turns enable row level security;
-alter table favorites enable row level security;
-alter table chat_messages enable row level security;
+-- Tie players to the anonymous auth identity
+alter table players add column if not exists auth_uid uuid;
 
 -- Membership helper. SECURITY DEFINER so it can read players
 -- regardless of RLS (also avoids policy recursion on players).
@@ -80,6 +25,13 @@ as $$
     where room_id = p_room_id and auth_uid = auth.uid()
   );
 $$;
+
+-- Drop the wide-open policies
+drop policy if exists "Allow public access to rooms" on rooms;
+drop policy if exists "Allow public access to players" on players;
+drop policy if exists "Allow public access to turns" on turns;
+drop policy if exists "Allow public access to favorites" on favorites;
+drop policy if exists "Allow public access to chat_messages" on chat_messages;
 
 -- Members-only policies (anonymous sessions have the 'authenticated' role)
 create policy "members read rooms" on rooms
@@ -160,14 +112,3 @@ revoke execute on function create_room(text, int, text) from anon, public;
 revoke execute on function join_room(text, text) from anon, public;
 grant execute on function create_room(text, int, text) to authenticated;
 grant execute on function join_room(text, text) to authenticated;
-
--- Enable Realtime
-begin;
-  drop publication if exists supabase_realtime;
-  create publication supabase_realtime;
-commit;
-
-alter publication supabase_realtime add table rooms;
-alter publication supabase_realtime add table turns;
-alter publication supabase_realtime add table favorites;
-alter publication supabase_realtime add table chat_messages;
