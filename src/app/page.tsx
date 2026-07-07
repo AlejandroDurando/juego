@@ -3,11 +3,42 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
+import { Flame } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/Card";
+import { Card, CardContent } from "@/components/ui/Card";
 import { supabase } from "@/lib/supabase";
 import { v4 as uuidv4 } from "uuid";
+
+// Deterministic so SSR and client render the same markup.
+const EMBERS = [
+  { left: "8%", duration: "13s", delay: "0s", drift: "26px" },
+  { left: "22%", duration: "17s", delay: "3.5s", drift: "-18px" },
+  { left: "37%", duration: "12s", delay: "7s", drift: "14px" },
+  { left: "52%", duration: "19s", delay: "1.5s", drift: "-30px" },
+  { left: "66%", duration: "14s", delay: "5s", drift: "22px" },
+  { left: "79%", duration: "16s", delay: "9s", drift: "-12px" },
+  { left: "91%", duration: "12.5s", delay: "2.5s", drift: "18px" },
+];
+
+function EmberField() {
+  return (
+    <div className="absolute inset-0 pointer-events-none z-0" aria-hidden>
+      {EMBERS.map((e, i) => (
+        <span
+          key={i}
+          className="ember-particle"
+          style={{
+            left: e.left,
+            animationDuration: e.duration,
+            animationDelay: e.delay,
+            ["--drift" as never]: e.drift,
+          }}
+        />
+      ))}
+    </div>
+  );
+}
 
 export default function LandingPage() {
   const router = useRouter();
@@ -118,109 +149,127 @@ export default function LandingPage() {
 
   if (!is18Plus) {
     return (
-      <main className="flex min-h-screen items-center justify-center p-4">
-        <Card className="max-w-md w-full text-center">
-          <CardHeader>
-            <CardTitle className="text-3xl text-[var(--brasa)]">Brasa</CardTitle>
-            <CardDescription className="text-base mt-2">
-              Un juego privado para dos personas.
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <p className="text-sm text-gray-300 mb-6">
-              Este es un juego pensado para adultos que quieren explorar sus gustos e intimidad de forma elegante y consensuada. Pueden frenar en cualquier momento.
-            </p>
-            <Button onClick={confirmAge} className="w-full" size="lg">
-              Soy mayor de 18 años
-            </Button>
-          </CardContent>
-        </Card>
+      <main className="relative flex min-h-screen items-center justify-center p-4 overflow-hidden">
+        <div className="orb absolute top-[-15%] left-[-10%] w-[28rem] h-[28rem] bg-[var(--brasa)] rounded-full blur-[160px] opacity-20 pointer-events-none" />
+        <EmberField />
+        <motion.div
+          initial={{ opacity: 0, y: 16 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.6, ease: "easeOut" }}
+          className="max-w-md w-full z-10"
+        >
+          <Card className="text-center relative overflow-hidden">
+            <div className="absolute top-0 left-0 w-full h-px bg-gradient-to-r from-transparent via-[var(--brasa-light)] to-transparent ember-line" />
+            <CardContent className="p-10">
+              <Flame className="w-8 h-8 mx-auto text-[var(--brasa-light)] mb-5" />
+              <h1 className="title-ember font-serif text-4xl font-bold mb-3">Brasa</h1>
+              <p className="text-[var(--text-muted)] mb-2">Un juego privado para dos personas.</p>
+              <p className="text-sm text-[var(--text-faint)] mb-8 leading-relaxed">
+                Pensado para adultos que quieren explorar sus gustos e intimidad de forma elegante y consensuada. Pueden frenar en cualquier momento.
+              </p>
+              <Button onClick={confirmAge} className="w-full" size="lg">
+                Soy mayor de 18 años
+              </Button>
+            </CardContent>
+          </Card>
+        </motion.div>
       </main>
     );
   }
 
   return (
-    <main className="flex min-h-screen flex-col items-center justify-center p-4 relative overflow-hidden">
-      {/* Decorative background elements */}
-      <div className="absolute top-[-10%] left-[-10%] w-96 h-96 bg-[var(--brasa)] rounded-full blur-[150px] opacity-20 pointer-events-none" />
-      <div className="absolute bottom-[-10%] right-[-10%] w-96 h-96 bg-[var(--brasa-light)] rounded-full blur-[150px] opacity-10 pointer-events-none" />
+    <main className="relative flex min-h-screen flex-col items-center justify-center p-4 overflow-hidden">
+      {/* Ambient glow */}
+      <div className="orb absolute top-[-15%] left-[-10%] w-[28rem] h-[28rem] bg-[var(--brasa)] rounded-full blur-[160px] opacity-25 pointer-events-none" />
+      <div className="orb-reverse absolute bottom-[-15%] right-[-10%] w-[28rem] h-[28rem] bg-[var(--brasa-light)] rounded-full blur-[160px] opacity-15 pointer-events-none" />
+      <EmberField />
 
+      {/* Hero */}
       <motion.div
-        initial={{ opacity: 0, y: 12 }}
+        initial={{ opacity: 0, y: 14 }}
         animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.6, ease: "easeOut" }}
-        className="mb-12 text-center z-10"
+        transition={{ duration: 0.7, ease: "easeOut" }}
+        className="mb-10 text-center z-10"
       >
-        <h1 className="font-serif text-5xl md:text-7xl font-bold tracking-tight text-[var(--brasa)] mb-4">
+        <p className="text-[11px] uppercase tracking-[0.4em] text-[var(--brasa-light)]/80 mb-5">
+          Un juego para dos
+        </p>
+        <h1 className="title-ember font-serif text-6xl md:text-8xl font-bold tracking-tight mb-4">
           Brasa
         </h1>
-        <p className="text-lg text-gray-400 font-light">Explorá la intimidad, a tu ritmo.</p>
+        <p className="text-lg text-[var(--text-muted)] font-light">
+          Explorá la intimidad, a tu ritmo.
+        </p>
       </motion.div>
 
+      {/* Single panel: name → create → join */}
       <motion.div
-        initial={{ opacity: 0, y: 16 }}
+        initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.6, delay: 0.15, ease: "easeOut" }}
-        className="w-full max-w-md space-y-8 z-10"
+        transition={{ duration: 0.7, delay: 0.2, ease: "easeOut" }}
+        className="w-full max-w-md z-10"
       >
-        <Card className="bg-opacity-50 backdrop-blur-sm">
-          <CardHeader>
-            <CardTitle>Tu nombre</CardTitle>
-            <CardDescription>Así te va a ver tu pareja en el juego.</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <Input
-              placeholder="Ej. Ale"
-              value={nickname}
-              onChange={(e) => {
-                setNickname(e.target.value);
-                localStorage.setItem("brasa_nickname", e.target.value);
-              }}
-              maxLength={20}
-            />
+        <Card className="relative overflow-hidden">
+          <div className="absolute top-0 left-0 w-full h-px bg-gradient-to-r from-transparent via-[var(--brasa-light)] to-transparent ember-line" />
+          <CardContent className="p-8 space-y-6">
+            <div className="space-y-2.5">
+              <label className="text-[11px] uppercase tracking-[0.25em] text-[var(--text-faint)]">
+                Tu nombre
+              </label>
+              <Input
+                placeholder="¿Cómo te llamás?"
+                value={nickname}
+                onChange={(e) => {
+                  setNickname(e.target.value);
+                  localStorage.setItem("brasa_nickname", e.target.value);
+                }}
+                maxLength={20}
+              />
+            </div>
+
+            <Button
+              onClick={handleCreateRoom}
+              disabled={isLoading}
+              size="lg"
+              className="w-full font-medium"
+            >
+              <Flame className="w-4 h-4" />
+              {isLoading ? "Creando sala..." : "Crear nueva sala"}
+            </Button>
+
+            <div className="relative py-1">
+              <div className="absolute inset-0 flex items-center">
+                <span className="w-full border-t border-[var(--card-border)]" />
+              </div>
+              <div className="relative flex justify-center">
+                <span className="bg-[#151009] px-3 text-[11px] uppercase tracking-[0.25em] text-[var(--text-faint)] rounded">
+                  o unite con un código
+                </span>
+              </div>
+            </div>
+
+            <div className="flex gap-3">
+              <Input
+                placeholder="BRASA-8F2K"
+                value={joinCode}
+                onChange={(e) => setJoinCode(e.target.value)}
+                className="text-center font-mono uppercase tracking-widest"
+              />
+              <Button
+                variant="outline"
+                onClick={handleJoinRoom}
+                disabled={isLoading || !joinCode}
+                className="px-6 h-11"
+              >
+                Entrar
+              </Button>
+            </div>
           </CardContent>
         </Card>
 
-        <Card className="bg-opacity-50 backdrop-blur-sm">
-          <CardHeader>
-            <CardTitle>Crear Sala</CardTitle>
-            <CardDescription>Iniciá un nuevo juego y compartí el link.</CardDescription>
-          </CardHeader>
-          <CardFooter>
-            <Button onClick={handleCreateRoom} disabled={isLoading} className="w-full">
-              {isLoading ? "Creando..." : "Crear nueva sala"}
-            </Button>
-          </CardFooter>
-        </Card>
-
-        <div className="relative">
-          <div className="absolute inset-0 flex items-center">
-            <span className="w-full border-t border-[var(--card-border)]" />
-          </div>
-          <div className="relative flex justify-center text-xs uppercase">
-            <span className="bg-[var(--background)] px-2 text-gray-500">O unirse a una</span>
-          </div>
-        </div>
-
-        <Card className="bg-opacity-50 backdrop-blur-sm">
-          <CardHeader>
-            <CardTitle>Unirse a Sala</CardTitle>
-            <CardDescription>Ingresá el código de invitación.</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <Input 
-              placeholder="Ej. BRASA-8F2K" 
-              value={joinCode}
-              onChange={(e) => setJoinCode(e.target.value)}
-              className="text-center font-mono uppercase tracking-widest"
-            />
-          </CardContent>
-          <CardFooter>
-            <Button variant="outline" onClick={handleJoinRoom} disabled={isLoading || !joinCode} className="w-full">
-              Entrar
-            </Button>
-          </CardFooter>
-        </Card>
+        <p className="mt-6 text-center text-xs text-[var(--text-faint)] tracking-wide">
+          Privado &middot; Sin registro &middot; Frenen cuando quieran
+        </p>
       </motion.div>
     </main>
   );

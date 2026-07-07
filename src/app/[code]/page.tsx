@@ -172,7 +172,7 @@ export default function GameRoom({ params }: { params: Promise<{ code: string }>
           className="max-w-md w-full"
         >
           <Card className="text-center relative overflow-hidden">
-            <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-[var(--brasa)] to-[var(--brasa-light)] ember-line" />
+            <div className="absolute top-0 left-0 w-full h-px bg-gradient-to-r from-transparent via-[var(--brasa-light)] to-transparent ember-line" />
             <CardHeader>
               <Flame className="w-8 h-8 mx-auto text-[var(--brasa)] mb-2" />
               <CardTitle className="text-3xl text-[var(--brasa)] font-serif italic">Noche Perfecta</CardTitle>
@@ -204,10 +204,10 @@ export default function GameRoom({ params }: { params: Promise<{ code: string }>
                 transition={{ duration: 0.6, ease: "easeOut" }}
               />
             </div>
-            <p className="text-xs text-gray-400">{room.score} / {room.game_length}</p>
+            <p className="text-xs text-[var(--text-muted)]">{room.score} / {room.game_length}</p>
           </div>
         </div>
-        <div className="flex items-center gap-2 text-sm px-3 py-1.5 rounded-full bg-[var(--card-bg)] border border-[var(--card-border)]">
+        <div className="flex items-center gap-2 text-sm px-3 py-1.5 rounded-full bg-[var(--card-bg)] border border-[var(--card-border)] backdrop-blur-md">
           <span className={isMyTurn ? "turn-dot" : "turn-dot-idle"} />
           {isMyTurn ? "Es tu turno" : `Es el turno de ${otherName}`}
         </div>
@@ -222,26 +222,26 @@ export default function GameRoom({ params }: { params: Promise<{ code: string }>
               initial={{ opacity: 0, y: 12 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.35, ease: "easeOut" }}
-              className={`p-4 rounded-xl border ${turn.actor_player === currentPlayer.id ? 'bg-[var(--card-bg)] border-[var(--card-border)] ml-8' : 'bg-[#1a1a1a] border-gray-800 mr-8'}`}
+              className={`p-4 rounded-xl border backdrop-blur-md ${turn.actor_player === currentPlayer.id ? 'bg-[var(--card-bg)] border-[var(--card-border)] ml-8' : 'bg-black/25 border-white/[0.06] mr-8'}`}
             >
               {turn.answers_turn_id && (
                 <div className="mb-2 pb-2 border-b border-[var(--card-border)]">
-                  <span className="text-xs text-gray-500 block mb-1">Respuesta:</span>
+                  <span className="text-xs text-[var(--text-faint)] block mb-1">Respuesta:</span>
                   {turn.answer_pose_id ? (
                     <div>
                       <img src={poses.find(p => p.id === turn.answer_pose_id)?.imageSrc} className="w-32 h-32 object-contain bg-[var(--background)] rounded p-2" alt="Pose" />
                       {turn.answer_variant && (
-                        <p className="text-sm text-gray-300 italic mt-1">&ldquo;{turn.answer_variant}&rdquo;</p>
+                        <p className="text-sm text-[var(--text-muted)] italic mt-1">&ldquo;{turn.answer_variant}&rdquo;</p>
                       )}
                     </div>
                   ) : (
-                    <p className="text-sm text-gray-300 italic">
+                    <p className="text-sm text-[var(--text-muted)] italic">
                       &ldquo;{turn.answer_text}{turn.answer_variant ? ` — ${turn.answer_variant}` : ""}&rdquo;
                     </p>
                   )}
                 </div>
               )}
-              <span className="text-xs text-gray-500 block mb-1">Pregunta:</span>
+              <span className="text-xs text-[var(--text-faint)] block mb-1">Pregunta:</span>
               <p className="font-serif text-lg">{turn.new_question_text}</p>
             </motion.div>
           ))}
@@ -255,14 +255,14 @@ export default function GameRoom({ params }: { params: Promise<{ code: string }>
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.4, ease: "easeOut" }}
         >
-          <Card className="border-[var(--brasa)] border-opacity-30 shadow-lg relative overflow-hidden">
-            <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-[var(--brasa)] to-[var(--brasa-light)] ember-line" />
+          <Card className="relative overflow-hidden">
+            <div className="absolute top-0 left-0 w-full h-px bg-gradient-to-r from-transparent via-[var(--brasa-light)] to-transparent ember-line" />
             <CardContent className="pt-6 space-y-6">
 
               {/* Answer the previous question first */}
               {lastTurn && (
                 <div className="space-y-4">
-                  <p className="text-xs uppercase tracking-widest text-gray-500">{otherName} te preguntó:</p>
+                  <p className="text-xs uppercase tracking-widest text-[var(--text-faint)]">{otherName} te preguntó:</p>
                   <h3 className="font-serif text-xl">{lastTurn.new_question_text}</h3>
 
                   {answerType === "image_choice" ? (
@@ -336,7 +336,7 @@ export default function GameRoom({ params }: { params: Promise<{ code: string }>
 
               {/* Choose your question: write it or let chance decide */}
               <div className={`space-y-4 transition-opacity duration-300 ${hasAnsweredLastTurn ? 'opacity-100' : 'opacity-30 pointer-events-none'}`}>
-                <p className="text-xs uppercase tracking-widest text-gray-500">
+                <p className="text-xs uppercase tracking-widest text-[var(--text-faint)]">
                   {lastTurn ? `Tu pregunta para ${otherName}:` : `Arrancá el juego. Tu pregunta para ${otherName}:`}
                 </p>
                 <Input
@@ -364,7 +364,7 @@ export default function GameRoom({ params }: { params: Promise<{ code: string }>
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           transition={{ duration: 0.4 }}
-          className="text-center p-8 border border-dashed border-[var(--card-border)] rounded-xl text-gray-500 animate-pulse"
+          className="text-center p-8 border border-dashed border-[var(--card-border)] rounded-xl text-[var(--text-faint)] animate-pulse"
         >
           Esperando a que {otherName} responda...
         </motion.div>
