@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
+import { motion } from "framer-motion";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/Card";
@@ -144,14 +145,24 @@ export default function LandingPage() {
       <div className="absolute top-[-10%] left-[-10%] w-96 h-96 bg-[var(--brasa)] rounded-full blur-[150px] opacity-20 pointer-events-none" />
       <div className="absolute bottom-[-10%] right-[-10%] w-96 h-96 bg-[var(--brasa-light)] rounded-full blur-[150px] opacity-10 pointer-events-none" />
 
-      <div className="mb-12 text-center z-10">
+      <motion.div
+        initial={{ opacity: 0, y: 12 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.6, ease: "easeOut" }}
+        className="mb-12 text-center z-10"
+      >
         <h1 className="font-serif text-5xl md:text-7xl font-bold tracking-tight text-[var(--brasa)] mb-4">
           Brasa
         </h1>
         <p className="text-lg text-gray-400 font-light">Explorá la intimidad, a tu ritmo.</p>
-      </div>
+      </motion.div>
 
-      <div className="w-full max-w-md space-y-8 z-10">
+      <motion.div
+        initial={{ opacity: 0, y: 16 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.6, delay: 0.15, ease: "easeOut" }}
+        className="w-full max-w-md space-y-8 z-10"
+      >
         <Card className="bg-opacity-50 backdrop-blur-sm">
           <CardHeader>
             <CardTitle>Tu nombre</CardTitle>
@@ -210,7 +221,7 @@ export default function LandingPage() {
             </Button>
           </CardFooter>
         </Card>
-      </div>
+      </motion.div>
     </main>
   );
 }

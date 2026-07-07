@@ -26,3 +26,40 @@ body {
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
+
+/* Soft breathing glow for the "your turn" indicator */
+@keyframes breathe {
+  0%, 100% {
+    opacity: 1;
+    box-shadow: 0 0 6px 1px rgba(52, 211, 153, 0.55);
+  }
+  50% {
+    opacity: 0.35;
+    box-shadow: 0 0 2px 0 rgba(52, 211, 153, 0.15);
+  }
+}
+
+.turn-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 9999px;
+  background: #34d399;
+  animation: breathe 2.4s ease-in-out infinite;
+}
+
+.turn-dot-idle {
+  width: 8px;
+  height: 8px;
+  border-radius: 9999px;
+  background: #52525b;
+}
+
+/* Gentle flicker for the ember accent line */
+@keyframes ember {
+  0%, 100% { opacity: 0.5; }
+  50% { opacity: 0.9; }
+}
+
+.ember-line {
+  animation: ember 5s ease-in-out infinite;
+}
