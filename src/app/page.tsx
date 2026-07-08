@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
-import { Flame } from "lucide-react";
+import { Flame, Lock } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { Card, CardContent } from "@/components/ui/Card";
@@ -45,6 +45,8 @@ export default function LandingPage() {
   const [joinCode, setJoinCode] = useState("");
   const [nickname, setNickname] = useState("");
   const [gameLength, setGameLength] = useState(15);
+  const [startLevel, setStartLevel] = useState(1);
+  const [unlockedLevel, setUnlockedLevel] = useState(1);
   const [isLoading, setIsLoading] = useState(false);
 
   useEffect(() => {
@@ -57,6 +59,8 @@ export default function LandingPage() {
     if (savedNickname) {
       setNickname(savedNickname);
     }
+    const unlocked = parseInt(localStorage.getItem("brasa_unlocked_level") || "1", 10);
+    setUnlockedLevel(Math.min(3, Math.max(1, unlocked)));
   }, []);
 
   const confirmAge = () => {
@@ -85,6 +89,15 @@ export default function LandingPage() {
       alert("No se pudo crear la sala: " + (roomError?.message ?? "error desconocido"));
       setIsLoading(false);
       return;
+    }
+
+    // create_room always starts at level 1; if the host chose a higher unlocked
+    // level, bump the room to it (members can update their own room via RLS).
+    if (startLevel > 1) {
+      const roomId = Array.isArray(roomData) ? roomData[0]?.id : roomData?.id;
+      if (roomId) {
+        await supabase.from("rooms").update({ current_level: startLevel }).eq("id", roomId);
+      }
     }
 
     router.push(`/${code}`);
@@ -198,7 +211,45 @@ export default function LandingPage() {
 
             <div className="space-y-2.5">
               <label className="text-[11px] uppercase tracking-[0.25em] text-[var(--text-faint)]">
-                Cantidad de preguntas
+                Nivel
+              </label>
+              <div className="grid grid-cols-3 gap-2">
+                {[
+                  { n: 1, name: "Chispa" },
+                  { n: 2, name: "Fuego" },
+                  { n: 3, name: "Brasa" },
+                ].map(({ n, name }) => {
+                  const locked = n > unlockedLevel;
+                  return (
+                    <button
+                      key={n}
+                      type="button"
+                      disabled={locked}
+                      onClick={() => setStartLevel(n)}
+                      className={`h-16 rounded-lg border flex flex-col items-center justify-center gap-0.5 transition-all duration-200 active:scale-[0.98] ${
+                        locked
+                          ? "border-[var(--card-border)] bg-white/[0.01] text-[var(--text-faint)] opacity-50 cursor-not-allowed"
+                          : startLevel === n
+                            ? "border-[rgba(230,126,34,0.5)] bg-[var(--brasa)]/15 text-[var(--foreground)] shadow-[0_0_16px_var(--brasa-glow)]"
+                            : "border-[var(--card-border)] bg-white/[0.02] text-[var(--text-muted)] hover:bg-white/[0.06]"
+                      }`}
+                    >
+                      {locked ? <Lock className="w-3.5 h-3.5" /> : <span className="text-sm font-semibold">{n}</span>}
+                      <span className="text-[10px] uppercase tracking-wider">{name}</span>
+                    </button>
+                  );
+                })}
+              </div>
+              {unlockedLevel < 3 && (
+                <p className="text-[11px] text-[var(--text-faint)]">
+                  Completá un nivel para desbloquear el siguiente.
+                </p>
+              )}
+            </div>
+
+            <div className="space-y-2.5">
+              <label className="text-[11px] uppercase tracking-[0.25em] text-[var(--text-faint)]">
+                Cantidad de preguntas por nivel
               </label>
               <div className="grid grid-cols-3 gap-2">
                 {[5, 10, 15].map((n) => (
