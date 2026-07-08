@@ -1,8 +1,8 @@
 "use client";
 
-import { useState, use } from "react";
+import { useState, useEffect, use } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Dices, Send, Flame } from "lucide-react";
+import { Dices, Send, Flame, ArrowRight } from "lucide-react";
 import { useGameState } from "@/hooks/useGameState";
 import { Button } from "@/components/ui/Button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/Card";
@@ -27,6 +27,16 @@ export default function GameRoom({ params }: { params: Promise<{ code: string }>
   const [answerPoseId, setAnswerPoseId] = useState<string | null>(null);
   const [answerVariant, setAnswerVariant] = useState("");
   const [isSending, setIsSending] = useState(false);
+  const [isAdvancing, setIsAdvancing] = useState(false);
+
+  // Unlock the next level on this device once the current one is completed.
+  const complete = room ? (room.status === "finished" || room.score >= room.game_length) : false;
+  useEffect(() => {
+    if (!room || !complete) return;
+    const unlocked = parseInt(localStorage.getItem("brasa_unlocked_level") || "1", 10);
+    const next = Math.min(3, room.current_level + 1);
+    if (next > unlocked) localStorage.setItem("brasa_unlocked_level", String(next));
+  }, [room, complete]);
 
   if (loading) return <div className="min-h-screen flex items-center justify-center text-[var(--brasa)]">Cargando sala...</div>;
   if (error || !room) return <div className="min-h-screen flex items-center justify-center text-red-500">Error: {error || "Sala no encontrada"}</div>;
@@ -35,17 +45,24 @@ export default function GameRoom({ params }: { params: Promise<{ code: string }>
   const isMyTurn = room.turn_player === currentPlayer.id || (!room.turn_player && currentPlayer.role === "host");
   const otherPlayer = players.find((p) => p.id !== currentPlayer.id);
   const otherName = otherPlayer?.nickname || "tu pareja";
-  const lastTurn = turns.length > 0 ? turns[turns.length - 1] : null;
-  const lastQuestion = lastTurn?.new_question_id ? questions.find((q) => q.id === lastTurn.new_question_id) : null;
+
+  // Only turns from the current level matter for play/history; a fresh level starts clean.
+  const levelTurns = turns.filter((t) => t.level === room.current_level);
+  const lastTurn = levelTurns.length > 0 ? levelTurns[levelTurns.length - 1] : null;
+  // The question to answer only counts if it belongs to this level (not a leftover from the previous one).
+  const pendingTurn = lastTurn;
+  const pendingQuestion = pendingTurn?.new_question_id ? questions.find((q) => q.id === pendingTurn.new_question_id) : null;
   // Custom (hand-written) questions have no id in the catalog: answer as free text.
-  const answerType = lastQuestion?.type ?? "text";
-  const isFinished = room.status === "finished" || room.score >= room.game_length;
-  const hasAnsweredLastTurn = !lastTurn || Boolean(answerText || answerPoseId);
-  const canSend = Boolean(questionText.trim()) && hasAnsweredLastTurn && !isSending;
+  const answerType = pendingQuestion?.type ?? "text";
+
+  const isLevelComplete = room.status === "finished" || room.score >= room.game_length;
+  const isGameComplete = isLevelComplete && room.current_level >= 3;
+  const hasAnsweredPending = !pendingTurn || Boolean(answerText || answerPoseId);
+  const canSend = Boolean(questionText.trim()) && hasAnsweredPending && !isSending;
   const progress = Math.min(100, (room.score / room.game_length) * 100);
 
   const pickRandomQuestion = () => {
-    const usedIds = new Set(turns.map((t) => t.new_question_id));
+    const usedIds = new Set(levelTurns.map((t) => t.new_question_id));
     const pool = questions.filter((q) => q.level === room.current_level);
     const fresh = pool.filter((q) => !usedIds.has(q.id));
     const source = fresh.length > 0 ? fresh : pool;
@@ -59,14 +76,8 @@ export default function GameRoom({ params }: { params: Promise<{ code: string }>
     if (!questionText.trim() || isSending) return;
     setIsSending(true);
 
-    let newScore = room.score;
-    if (lastTurn) newScore += 1;
-
-    let newLevel = room.current_level;
-    const third = Math.ceil(room.game_length / 3);
-    if (newScore >= third && newScore < third * 2) newLevel = 2;
-    if (newScore >= third * 2) newLevel = 3;
-
+    // Score counts answered questions within the current level.
+    const newScore = room.score + (pendingTurn ? 1 : 0);
     const newStatus = newScore >= room.game_length ? "finished" : "active";
 
     // 1. Insert new turn
@@ -75,13 +86,13 @@ export default function GameRoom({ params }: { params: Promise<{ code: string }>
       .insert({
         room_id: room.id,
         actor_player: currentPlayer.id,
-        answers_turn_id: lastTurn ? lastTurn.id : null,
+        answers_turn_id: pendingTurn ? pendingTurn.id : null,
         answer_text: answerText || null,
         answer_pose_id: answerPoseId || null,
         answer_variant: answerVariant || null,
         new_question_id: questionId,
         new_question_text: questionText.trim(),
-        level: newLevel
+        level: room.current_level
       })
       .select()
       .single();
@@ -98,7 +109,6 @@ export default function GameRoom({ params }: { params: Promise<{ code: string }>
       .from("rooms")
       .update({
         score: newScore,
-        current_level: newLevel,
         status: newStatus,
         turn_player: otherPlayer?.id ?? null // Pass turn to other player
       })
@@ -125,6 +135,39 @@ export default function GameRoom({ params }: { params: Promise<{ code: string }>
     setQuestionText("");
     setQuestionId(null);
     setIsSending(false);
+  };
+
+  const advanceLevel = async () => {
+    if (isAdvancing || room.current_level >= 3) return;
+    setIsAdvancing(true);
+    const nextLevel = room.current_level + 1;
+    const host = players.find((p) => p.role === "host");
+    const guest = players.find((p) => p.role === "guest");
+    // Alternate who opens each level: level 2 → guest (player 2), level 3 → host again.
+    const starter = nextLevel % 2 === 0 ? guest : host;
+
+    const { data: updatedRoom, error: advError } = await supabase
+      .from("rooms")
+      .update({
+        current_level: nextLevel,
+        score: 0,
+        status: "active",
+        turn_player: starter?.id ?? null,
+      })
+      .eq("id", room.id)
+      .eq("current_level", room.current_level) // no-op if the other player already advanced
+      .select()
+      .maybeSingle();
+
+    if (advError) {
+      console.error(advError);
+      alert("No se pudo pasar de nivel: " + advError.message);
+      setIsAdvancing(false);
+      return;
+    }
+    // updatedRoom is null if the other player advanced first; polling will sync us.
+    if (updatedRoom) setRoom(updatedRoom);
+    setIsAdvancing(false);
   };
 
   const copyInvite = () => {
@@ -162,7 +205,7 @@ export default function GameRoom({ params }: { params: Promise<{ code: string }>
     );
   }
 
-  if (isFinished) {
+  if (isLevelComplete) {
     return (
       <main className="min-h-screen flex items-center justify-center p-4">
         <motion.div
@@ -175,10 +218,28 @@ export default function GameRoom({ params }: { params: Promise<{ code: string }>
             <div className="absolute top-0 left-0 w-full h-px bg-gradient-to-r from-transparent via-[var(--brasa-light)] to-transparent ember-line" />
             <CardHeader>
               <Flame className="w-8 h-8 mx-auto text-[var(--brasa)] mb-2" />
-              <CardTitle className="text-3xl text-[var(--brasa)] font-serif italic">Noche Perfecta</CardTitle>
+              {isGameComplete ? (
+                <CardTitle className="text-3xl text-[var(--brasa)] font-serif italic">Noche Perfecta</CardTitle>
+              ) : (
+                <CardTitle className="text-3xl text-[var(--brasa)] font-serif italic">
+                  Nivel {room.current_level} completado
+                </CardTitle>
+              )}
             </CardHeader>
             <CardContent>
-              <p className="text-[var(--foreground)] mb-6">Han completado el juego. Es momento de dejar los teléfonos.</p>
+              {isGameComplete ? (
+                <p className="text-[var(--foreground)] mb-2">Completaron los tres niveles. Es momento de dejar los teléfonos.</p>
+              ) : (
+                <>
+                  <p className="text-[var(--text-muted)] mb-6">
+                    Terminaron el nivel {levelNames[room.current_level]}. Cuando estén listos, sigan al siguiente — abre {otherName}… o vos.
+                  </p>
+                  <Button onClick={advanceLevel} disabled={isAdvancing} size="lg" className="w-full">
+                    {isAdvancing ? "Pasando..." : `Pasemos al Nivel ${room.current_level + 1}`}
+                    <ArrowRight className="w-4 h-4" />
+                  </Button>
+                </>
+              )}
             </CardContent>
           </Card>
         </motion.div>
@@ -213,10 +274,10 @@ export default function GameRoom({ params }: { params: Promise<{ code: string }>
         </div>
       </header>
 
-      {/* History log (last few turns) */}
+      {/* History log (last few turns of this level) */}
       <div className="flex-1 overflow-y-auto mb-8 space-y-4">
         <AnimatePresence initial={false}>
-          {turns.slice(-3).map((turn) => (
+          {levelTurns.slice(-3).map((turn) => (
             <motion.div
               key={turn.id}
               initial={{ opacity: 0, y: 12 }}
@@ -260,15 +321,15 @@ export default function GameRoom({ params }: { params: Promise<{ code: string }>
             <CardContent className="pt-6 space-y-6">
 
               {/* Answer the previous question first */}
-              {lastTurn && (
+              {pendingTurn && (
                 <div className="space-y-4">
                   <p className="text-xs uppercase tracking-widest text-[var(--text-faint)]">{otherName} te preguntó:</p>
-                  <h3 className="font-serif text-xl">{lastTurn.new_question_text}</h3>
+                  <h3 className="font-serif text-xl">{pendingTurn.new_question_text}</h3>
 
                   {answerType === "image_choice" ? (
                     <>
                       <div className="grid grid-cols-2 gap-4">
-                        {(lastQuestion?.options ?? poses).map(pose => (
+                        {(pendingQuestion?.options ?? poses).map(pose => (
                           <motion.div
                             key={pose.id}
                             whileHover={{ scale: 1.03 }}
@@ -280,7 +341,7 @@ export default function GameRoom({ params }: { params: Promise<{ code: string }>
                           </motion.div>
                         ))}
                       </div>
-                      {lastQuestion?.allowVariantNote && (
+                      {pendingQuestion?.allowVariantNote && (
                         <Input
                           placeholder="Alguna variante o nota (opcional)"
                           value={answerVariant}
@@ -305,7 +366,7 @@ export default function GameRoom({ params }: { params: Promise<{ code: string }>
                         </Button>
                       </div>
                       <AnimatePresence>
-                        {answerText === "Sí" && lastQuestion?.followup && (
+                        {answerText === "Sí" && pendingQuestion?.followup && (
                           <motion.div
                             initial={{ opacity: 0, height: 0 }}
                             animate={{ opacity: 1, height: "auto" }}
@@ -314,7 +375,7 @@ export default function GameRoom({ params }: { params: Promise<{ code: string }>
                             className="overflow-hidden"
                           >
                             <Input
-                              placeholder={lastQuestion.followup.text + (lastQuestion.followup.examples ? ` (${lastQuestion.followup.examples.join(", ")})` : "")}
+                              placeholder={pendingQuestion.followup.text + (pendingQuestion.followup.examples ? ` (${pendingQuestion.followup.examples.join(", ")})` : "")}
                               value={answerVariant}
                               onChange={(e) => setAnswerVariant(e.target.value)}
                             />
@@ -332,12 +393,12 @@ export default function GameRoom({ params }: { params: Promise<{ code: string }>
                 </div>
               )}
 
-              {lastTurn && <div className="border-t border-[var(--card-border)]" />}
+              {pendingTurn && <div className="border-t border-[var(--card-border)]" />}
 
               {/* Choose your question: write it or let chance decide */}
-              <div className={`space-y-4 transition-opacity duration-300 ${hasAnsweredLastTurn ? 'opacity-100' : 'opacity-30 pointer-events-none'}`}>
+              <div className={`space-y-4 transition-opacity duration-300 ${hasAnsweredPending ? 'opacity-100' : 'opacity-30 pointer-events-none'}`}>
                 <p className="text-xs uppercase tracking-widest text-[var(--text-faint)]">
-                  {lastTurn ? `Tu pregunta para ${otherName}:` : `Arrancá el juego. Tu pregunta para ${otherName}:`}
+                  {pendingTurn ? `Tu pregunta para ${otherName}:` : `Abrís el nivel. Tu pregunta para ${otherName}:`}
                 </p>
                 <Input
                   placeholder="Escribí tu propia pregunta..."
