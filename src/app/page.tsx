@@ -44,6 +44,7 @@ export default function LandingPage() {
   const [is18Plus, setIs18Plus] = useState(false);
   const [joinCode, setJoinCode] = useState("");
   const [nickname, setNickname] = useState("");
+  const [gameLength, setGameLength] = useState(15);
   const [isLoading, setIsLoading] = useState(false);
 
   useEffect(() => {
@@ -77,7 +78,7 @@ export default function LandingPage() {
     }
 
     const { data: roomData, error: roomError } = await supabase
-      .rpc("create_room", { p_code: code, p_game_length: 15, p_nickname: nickname || null });
+      .rpc("create_room", { p_code: code, p_game_length: gameLength, p_nickname: nickname || null });
 
     if (roomError || !roomData) {
       console.error("Error creating room", roomError);
@@ -193,6 +194,28 @@ export default function LandingPage() {
                 }}
                 maxLength={20}
               />
+            </div>
+
+            <div className="space-y-2.5">
+              <label className="text-[11px] uppercase tracking-[0.25em] text-[var(--text-faint)]">
+                Cantidad de preguntas
+              </label>
+              <div className="grid grid-cols-3 gap-2">
+                {[5, 10, 15].map((n) => (
+                  <button
+                    key={n}
+                    type="button"
+                    onClick={() => setGameLength(n)}
+                    className={`h-11 rounded-lg border text-sm font-medium transition-all duration-200 active:scale-[0.98] ${
+                      gameLength === n
+                        ? "border-[rgba(230,126,34,0.5)] bg-[var(--brasa)]/15 text-[var(--foreground)] shadow-[0_0_16px_var(--brasa-glow)]"
+                        : "border-[var(--card-border)] bg-white/[0.02] text-[var(--text-muted)] hover:bg-white/[0.06]"
+                    }`}
+                  >
+                    {n}
+                  </button>
+                ))}
+              </div>
             </div>
 
             <Button
